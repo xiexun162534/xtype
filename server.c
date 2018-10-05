@@ -484,6 +484,22 @@ static void server_run ()
               FD_CLR (client_fd[which], &fds);
               player_delete (which);
               distribute_infos ();
+              switch (server_status)
+                {
+                case XTYPE_SWAITING:
+                  check_all_ready ();
+                  break;
+                case XTYPE_SRUNNING:
+                  if (first_player == -1)
+                    {
+                      /* No player left */
+                      server_status = XTYPE_SWAITING;
+                    }
+                  break;
+                default:
+                  /* do nothing */
+                  break;
+                }
               check_all_ready ();
               goto end_receive;
             }
