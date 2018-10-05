@@ -336,7 +336,7 @@ int get_ready (void *message, uint32_t *is_ready_p)
   struct xtype_ready_header *ready_header;
   header = (struct xtype_header *) message;
   ready_header = (struct xtype_ready_header *) (message + (sizeof (struct xtype_header)));
-  if (header->size == (sizeof (struct xtype_header)) + (sizeof (struct xtype_ready_header)))
+  if (header->size != (sizeof (struct xtype_header)) + (sizeof (struct xtype_ready_header)))
     return -1;
 
   *is_ready_p = ready_header->is_ready;
