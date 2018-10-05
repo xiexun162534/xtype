@@ -204,6 +204,40 @@ void post_process (char *content, uint32_t size)
     }
 }
 
+
+
+static int distribute_infos ()
+{
+  struct xtype_info_header infos_tosend[XTYPE_MAX_PLAYERS];
+  int which, i;
+  for (which = first_player, i = 0; which != -1; which = infos[which].next, i++)
+    {
+      assert (i < XTYPE_MAX_PLAYERS);
+      strcpy (infos_tosend[i].id, infos[which].id);
+      infos_tosend[i].position = infos[which].position;
+    }
+  for (which = first_player; which != -1; which = infos[which].next)
+    {
+      send_info (client_fd[which], infos_tosend, i);
+    }
+
+  infos_dirty = 0;
+  return 0;
+}
+
+
+static int distribute_status ()
+{
+  int which;
+  for (which = first_player; which != -1; which = infos[which].next)
+    {
+      if (send_status (client_fd[which], server_status) == -1)
+        return -1;
+    }
+
+  return 0;
+}
+
 static void server_init ()
 {
   server_fd = socket (args.socket_domain, args.socket_type, args.socket_protocol);
@@ -253,6 +287,16 @@ static void server_init ()
     max_fd = server_fd;
 }
 
+static void server_reset ()
+{
+  int which;
+  for (which = first_player; which != -1; which = infos[which].next)
+    {
+      infos[which].position = 0;
+      infos[which].is_ready = 0;
+    }
+}
+
 static void server_end ()
 {
   int i;
@@ -277,6 +321,15 @@ static int server_type (int which, void *message)
         return -1;
       player_update (which, infos[which].position + 1);
       touch_infos ();
+      if (infos[which].position == file_size)
+        {
+          distribute_infos ();
+          sleep (2);
+          server_status = XTYPE_SEND;
+          if (distribute_status () == -1)
+            error_exit ("Cannot end the game.");
+          server_reset ();
+        }
     }
   return 0;
 }
@@ -313,10 +366,10 @@ static int check_all_ready ()
 
   /* All players are ready. */
   server_status = XTYPE_SRUNNING;
+  if (distribute_status () == -1)
+    error_exit ("Cannot send status to clients.");
   for (which = first_player; which != -1; which = infos[which].next)
     {
-      if (send_status (client_fd[which], XTYPE_SRUNNING) == -1)
-        return -1;
       infos[which].is_ready = 0;
     }
 
@@ -345,25 +398,6 @@ static int server_con (int which, void *message)
   return 0;
 }
 
-static int distribute_infos ()
-{
-  struct xtype_info_header infos_tosend[XTYPE_MAX_PLAYERS];
-  int which, i;
-  for (which = first_player, i = 0; which != -1; which = infos[which].next, i++)
-    {
-      assert (i < XTYPE_MAX_PLAYERS);
-      strcpy (infos_tosend[i].id, infos[which].id);
-      infos_tosend[i].position = infos[which].position;
-    }
-  for (which = first_player; which != -1; which = infos[which].next)
-    {
-      send_info (client_fd[which], infos_tosend, i);
-    }
-
-  infos_dirty = 0;
-  return 0;
-}
-
 static void server_run ()
 {
   fd_set fds;
@@ -384,6 +418,16 @@ static void server_run ()
             goto end_receive;
         }
       dirty_check_count++;
+
+      if (server_status == XTYPE_SEND)
+        {
+          sleep (5);
+          server_status = XTYPE_SWAITING;
+          if (distribute_status () == -1)
+            error_exit ("Cannot send status to clients.");
+        }
+
+      
       seconds_1.tv_sec = 1;
       seconds_1.tv_usec = 0;
       while ((select_count = select (max_fd + 1, &this_set, NULL, NULL, &seconds_1)) == -1)
@@ -443,10 +487,13 @@ static void server_run ()
               check_all_ready ();
               goto end_receive;
             }
+
           
           switch (get_ptype (message))
             {
             case XTYPE_PTYPE:
+              if (server_status != XTYPE_SRUNNING)
+                goto end_receive;
               if (server_type (which, message) == -1)
                 goto end_receive;
               break;

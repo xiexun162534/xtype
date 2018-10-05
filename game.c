@@ -32,6 +32,13 @@ void game_init ()
 
 }
 
+void game_reset ()
+{
+  ifinfo.position = 0;
+  ifinfo.me_ready = 0;
+  ifinfo.duration = 0;
+}
+
 static int update_position (uint32_t position)
 {
   if (position < ifinfo.offset_buffer || position >= ifinfo.offset_buffer + ifinfo.text_size)
@@ -197,6 +204,8 @@ void game_run ()
 
                   case XTYPE_SEND:
                     ifinfo.game_state = XTYPE_GAME_END;
+                    stopwatch_stop ();
+                    game_reset ();
                     break;
 
                   case XTYPE_SREADY:
