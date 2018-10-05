@@ -1,0 +1,8 @@
+Xtype
+Xie Xun: xiexun162534@gmail.com
+
+A simple command-line typing game.
+
+Usage:
+        xtype_server <port> <text file>
+        xtype <host> <port> <id>
