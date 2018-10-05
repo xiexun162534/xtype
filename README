@@ -1,7 +1,7 @@
 Xtype
 Xie Xun: xiexun162534@gmail.com
 
-A simple command-line typing game.
+A simple typing game.
 
 Usage:
         xtype_server <port> <text file>
