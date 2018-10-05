@@ -113,8 +113,13 @@ static void player_delete (int which)
   client_fd[which] = -1;
   if (first_player == which)
     {
-      assert (infos[which].previous = -1);
-      first_player = infos[which].next;
+      int next = infos[which].next;
+      assert (infos[which].previous == -1);
+      first_player = next;
+      if (next != -1)
+        {
+          infos[next].previous = -1;
+        }
     }
   else
     {
@@ -417,6 +422,7 @@ static void server_run ()
         {
           int which;
           void *message;
+          ssize_t read_size;
           for (which = 0; which < XTYPE_MAX_PLAYERS; which++)
             {
               if (client_fd[which] != -1 && FD_ISSET (client_fd[which], &this_set))
@@ -425,8 +431,19 @@ static void server_run ()
           assert (which < XTYPE_MAX_PLAYERS);
 
           message = malloc (XTYPE_MSG_MAXSIZE);
-          if (read_socket (client_fd[which], message) == -1)
+          read_size = read_socket (client_fd[which], message);
+          if (read_size == -1)
             goto end_receive;
+          else if (read_size == 0)
+            {
+              /* connection closed */
+              FD_CLR (client_fd[which], &fds);
+              player_delete (which);
+              distribute_infos ();
+              check_all_ready ();
+              goto end_receive;
+            }
+          
           switch (get_ptype (message))
             {
             case XTYPE_PTYPE:

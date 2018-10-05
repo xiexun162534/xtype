@@ -121,8 +121,14 @@ void game_run ()
           /* message from server */
           void *message = malloc (XTYPE_MSG_MAXSIZE);
           int ptype;
-          if (read_socket (socket_fd, message) == -1)
+          ssize_t read_size;
+          read_size = read_socket (socket_fd, message);
+          if (read_size == -1)
             goto end_receive;
+          else if (read_size == 0)
+            {
+              error_exit ("Connection closed.");
+            }
 
           ptype = get_ptype (message);
           switch (ptype)

@@ -13,7 +13,13 @@ int read_socket (int socket_fd, void *buffer)
 {
   struct xtype_header *header;
   uint32_t magic_code, size;
-  read_full (socket_fd, buffer, sizeof (struct xtype_header));
+  ssize_t read_size_header;
+  ssize_t read_size_content;
+  read_size_header = read_full (socket_fd, buffer, sizeof (struct xtype_header));
+  if (read_size_header == 0)
+    return 0;
+  else if (read_size_header == -1)
+    return -1;
   header = (struct xtype_header *) buffer;
   magic_code = ntohl (header->magic_code);
   size = ntohl (header->size);
@@ -30,9 +36,13 @@ int read_socket (int socket_fd, void *buffer)
       return -1;
     }
   
-  read_full (socket_fd, buffer + sizeof (struct xtype_header), size - sizeof (struct xtype_header));
+  read_size_content = read_full (socket_fd, buffer + sizeof (struct xtype_header), size - sizeof (struct xtype_header));
+  if (read_size_content == 0)
+    return 0;
+  else if (read_size_content == -1)
+    return -1;
 
-  return 0;
+  return read_size_header + read_size_content;
 }
 
 static int write_socket (int socket_fd, void *buffer)
