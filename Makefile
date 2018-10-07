@@ -5,7 +5,7 @@ CFLAGS = -Wall -ggdb3
 
 xtype_game: xtype xtype_server
 
-xtype: $(CLIENT_O)
+xtype: $(CLIENT_O) -lncursesw
 	$(CC) $^ $(CFLAGS) -o $@
 
 xtype_server: $(SERVER_O)

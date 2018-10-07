@@ -8,6 +8,7 @@
 #include <assert.h>
 #include <string.h>
 #include <netdb.h>
+#include <ncursesw/curses.h>
 #include "xtype.h"
 #include "error.h"
 #include "interface.h"
@@ -34,25 +35,26 @@ static void print_player_info (struct player_info info)
   int bar_length;
   int mark_length;
   int i;
-  head_length = printf ("%s ", info.id);
+  head_length = strlen(info.id) + 1;
+  printw ("%s ", info.id);
   for (i = head_length; i < XTYPE_ID_LENGTH + 1; i++)
     {
-      putchar (' ');
+      printw ("%c", ' ');
     }
   bar_length = window_width - XTYPE_ID_LENGTH - 1;
   if (info.position >= ifinfo.file_size)
     {
       assert (info.position == ifinfo.file_size);
       for (i = 0; i < bar_length; i++)
-        putchar ('*');
+        printw ("%c", '*');
     }
   else
     {
       mark_length = bar_length * info.position / ifinfo.file_size;
       for (i = 0; i < mark_length; i++)
-        putchar ('#');
+        printw ("%c", '#');
       for (i = mark_length; i < bar_length; i++)
-        putchar ('-');
+        printw ("%c", '-');
     }
 }
 
@@ -84,14 +86,19 @@ static void scroll_print ()
   assert ((offset >= head && offset < tail) || tail == head);
 
   if (tail > head)
-    fwrite (&ifinfo.text_buffer[head], sizeof (char), tail - head, stdout);
-  putchar ('\n');
+    {
+      char c = ifinfo.text_buffer[tail];
+      ifinfo.text_buffer[tail] = 0;
+      printw ("%s", &ifinfo.text_buffer[head]);
+      ifinfo.text_buffer[tail] = c;
+    }
+  printw ("\n");
   for (i = head; i < tail; i++)
     {
       if (i != offset)
-        putchar (' ');
+        printw ("%c", ' ');
       else
-        putchar ('|');
+        printw ("%c", '|');
     }
 }
 
@@ -104,29 +111,29 @@ static void draw_running ()
     int seconds = cached_duration % 60;
     int minutes = (cached_duration / 60) % 60;
     int hours = cached_duration / 60 / 60;
-    printf ("%d:%02d:%02d\n", hours, minutes, seconds);
+    printw ("%d:%02d:%02d\n", hours, minutes, seconds);
   }
 
   {
     int i;
-    for (i = 0; i + 1 < window_height - 4 && i < ifinfo.infos_count; i++)
+    for (i = 0; i + 1 < window_height - 5 && i < ifinfo.infos_count; i++)
       {
         print_player_info (ifinfo.infos[i]);
-        putchar ('\n');
+        printw ("\n");
       }
-    if (ifinfo.infos_count + 1 < window_height - 3)
+    if (ifinfo.infos_count + 1 < window_height - 4)
       {
-        for (i = ifinfo.infos_count; i + 1 < window_height - 3; i++)
-          putchar ('\n');
+        for (i = ifinfo.infos_count; i + 1 < window_height - 4; i++)
+          printw ("\n");
       }
-    else if (ifinfo.infos_count + 1 == window_height - 3)
+    else if (ifinfo.infos_count + 1 == window_height - 4)
       {
         print_player_info (ifinfo.infos[ifinfo.infos_count - 1]);
-        putchar ('\n');
+        printw ("\n");
       }
     else
       {
-        printf ("...\n");
+        printw ("...\n");
       }
   }
 
@@ -141,7 +148,7 @@ static void draw_running ()
     }
   else
     {
-      printf ("Finished.\n");
+      printw ("Finished.\n");
     }
 }
 
@@ -160,22 +167,23 @@ void draw ()
   }
 
   /* clear screen */
-  printf ("\033[2J\033[H\033[3J");
+  // printf ("\033[2J\033[H\033[3J");
+  move(0, 0);
 
   switch (ifinfo.game_state)
     {
     case XTYPE_GAME_WAITING:
       if (ifinfo.me_ready)
         {
-          printf ("[Ready]\n");
-          printf ("Press C to cancel.\n");
+          printw ("[Ready]\n");
+          printw ("Press C to cancel.\n");
         }
       else
         {
-          printf ("[Not Ready]\n");
-          printf ("Press R to get ready.\n");
+          printw ("[Not Ready]\n");
+          printw ("Press R to get ready.\n");
         } 
-      printf ("Press Q to quit.\n");
+      printw ("Press Q to quit.\n");
       break;
 
     case XTYPE_GAME_RUNNING:
@@ -183,11 +191,11 @@ void draw ()
       break;
 
     case XTYPE_GAME_READY:
-      printf ("Ready\n");
+      printw ("Ready\n");
       break;
 
     case XTYPE_GAME_END:
-      printf ("End\n");
+      printw ("End\n");
       break;
 
     default:
@@ -195,7 +203,8 @@ void draw ()
       break;
     }
   
-  fflush (stdout);
+  //fflush (stdout);
+  refresh();
   
   /* unblock SIGWINCH */
   if (sigprocmask (SIG_SETMASK, &oldset, NULL) == -1)
@@ -211,6 +220,7 @@ static void handler_sigwinch (int which)
     error_exit ("Cannot get new window size.");
   window_height = ws.ws_row;
   window_width = ws.ws_col;
+  resizeterm (window_height, window_width);
   draw ();
 }
 
@@ -276,11 +286,26 @@ void read_args (int argc, char *argv[])
   }
 }
 
+static void crt_begin()
+{
+  initscr();
+  curs_set(0);
+}
+
+static void crt_end()
+{
+  refresh();
+  curs_set(1);
+  endwin();
+}
 
 int main (int argc, char *argv[])
 {
   read_args (argc, argv);
   stopwatch_init ();
+
+  crt_begin();
+
   game_init ();
   interface_init ();
 
@@ -288,8 +313,10 @@ int main (int argc, char *argv[])
 
   interface_end ();
   game_end ();
+
+  crt_end();
   
-  printf ("\033[2J\033[H\033[3J");
+  // printf ("\033[2J\033[H\033[3J");
   printf ("Bye.\n");
   exit (0);
 }

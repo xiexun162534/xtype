@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <signal.h>
 
 #include "xtype.h"
 #include "interface.h"
@@ -17,6 +18,12 @@
 #include "stopwatch.h"
 
 static int socket_fd;
+static volatile sig_atomic_t should_exit = 0;
+
+static void int_hand()
+{
+  should_exit = 1;
+}
 
 void game_init ()
 {
@@ -30,6 +37,7 @@ void game_init ()
   if (send_con (socket_fd, args.id) == -1)
     error_exit ("Cannot send connect request to server.");
 
+  signal(SIGINT, int_hand);
 }
 
 void game_reset ()
@@ -56,7 +64,7 @@ void game_run ()
   FD_ZERO (&this_set);
   FD_SET (STDIN_FILENO, &this_set);
   FD_SET (socket_fd, &this_set);
-  while (1)
+  while (!should_exit)
     {
       fd_set test_set = this_set;
       while (select (socket_fd + 1, &test_set, NULL, NULL, NULL) == -1)
