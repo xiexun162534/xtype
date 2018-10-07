@@ -365,6 +365,10 @@ static int check_all_ready ()
     }
 
   /* All players are ready. */
+  server_status = XTYPE_SREADY;
+  if (distribute_status () == -1)
+    error_exit ("Cannot send status to clients.");
+  sleep (3);
   server_status = XTYPE_SRUNNING;
   if (distribute_status () == -1)
     error_exit ("Cannot send status to clients.");
